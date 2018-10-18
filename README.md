@@ -4,33 +4,33 @@
 $ sudo apt-add-repository ppa:ubuntugis/ubuntugis-unstable
 $ sudo apt-get update
 $ sudo apt-get install libgdal-dev
-$ sudo apt-get install python-dev
-$ sudo apt-get install gdal-bin python-gdal python3-gdal
+$ sudo apt-get install python3-dev
+$ sudo apt-get install gdal-bin python3-gdal
 ```
 
 ### Create and activate a virtual environment:
 
 ```
-$ virtualenv env
+$ virtualenv env -p python3
 $ source env/bin/activate
 ```
 
 ### Install GDAL:
 
 ```
-(env) $ pip install numpy
-(env) $ pip install GDAL==$(gdal-config --version) --global-option=build_ext --global-option="-I/usr/include/gdal"
+(env) $ pip3 install numpy
+(env) $ pip3 install GDAL==$(gdal-config --version) --global-option=build_ext --global-option="-I/usr/include/gdal"
 ```
 
 ### Install TensorFlow-GPU
 ```
-(env) $ pip install tensorflow-gpu
+(env) $ pip3 install tensorflow-gpu
 ```
 
 ### Install Others Requirements
 
 ```
-(env) $ pip install -r requirements.txt
+(env) $ pip3 install -r requirements.txt
 ```
 
 
