@@ -51,23 +51,23 @@ python3 run.py --mode=generate --image=image4.tif --labels=image4_labels.tif --o
 
 #### Build dataset to validation
 ```
-python3 run.py --mode=generate --image=image5.tif --labels=image5_labels.tif --output=validation.h5 --chip_size=256 --channels=4 --grids=2 --rotate=true --flip=true
+python3 run.py --mode=generate --image=image5.tif --labels=image5_labels.tif --output=validation.h5 --chip_size=512 --channels=4 --grids=2 --rotate=true --flip=true
 ```
 
 ### Train model
 
 ```
-python3 run.py --mode=train --train=train.h5 --test=test.h5 --epochs=100 --batch_size=25
+python3 run.py --mode=train --train=train.h5 --test=test.h5 --epochs=100 --batch_size=5 --classes=2
 ```
 
 ### Evaluate model
 
 ```
-python3 run.py --mode=evaluate --evaluate=validation.h5 --batch_size=25
+python3 run.py --mode=evaluate --evaluate=validation.h5 --classes=2 --batch_size=5 
 ```
 
 ### Predict image
 
 ```
-python3 run.py --mode=predict --input=image.tif --output=output.tif --chip_size=1024 --channels=4 --grids=1 --batch_size 5
+python3 run.py --mode=predict --input=image.tif --output=output.tif --chip_size=1024 --channels=4 --classes=2 --grids=2 --batch_size=5
 ```

@@ -8,8 +8,10 @@ from sklearn.metrics import classification_report
 import tensorflow as tf
 from osgeo import gdal
 import psutil
+import shutil
+import glob
 
-from models import unet as md
+from models import unet, unet_lapig, deeplab
 import image_utils
 import arguments
 
@@ -20,7 +22,19 @@ config.gpu_options.allow_growth = True
 config.gpu_options.allocator_type = 'BFC'
 config.gpu_options.per_process_gpu_memory_fraction = 1
 
-def train(input_train, input_test, model_dir, epochs=10, batch_size=10):
+models = {
+	'unet'      : unet.model_fn,
+	'unet_lapig': unet_lapig.model_fn,
+	'deeplab'   : deeplab.model_fn,
+}
+
+params={
+	
+	'tensorboard_images_max_outputs': 2,
+	'learning_rate': 0.00005,
+}
+
+def train(input_train, input_test, model, model_dir, epochs, batch_size, params):
 	train_file, train_data, train_labels = image_utils.load_dataset(input_train, read_only=True)
 	test_file, test_data, test_labels = image_utils.load_dataset(input_test, read_only=True)
 	
@@ -30,25 +44,33 @@ def train(input_train, input_test, model_dir, epochs=10, batch_size=10):
 	print("\nTrain: {0}\nTest:{1}\n".format(train_size, test_size))
 
 	logging_hook = tf.train.LoggingTensorHook(tensors={}, every_n_iter=train_size)
-	estimator = tf.estimator.Estimator(model_fn=md.description, model_dir=model_dir)
+
+	if model not in models.keys():
+		raise ValueError('Model ' + model + ' is not supported')
+
+	model_fn=models[model]
 
 	with tf.Session(config=config) as sess:
 		FILE_BATCH  = 20000
 		train_input = None
 		test_input  = None
-		for i in range(0, epochs):
-			print("\nEPOCH: {index}\n".format(index=i + 1))
+		lowest_loss = 1
+	
+		estimator = tf.estimator.Estimator(model_fn=model_fn, params=params, model_dir=model_dir)
+
+		for epoch in range(1, epochs + 1):		
+			print("\nEPOCH: {index}\n".format(index=epoch))
 		
 			train_index = 0
 			while train_index < train_size:
 				if FILE_BATCH == None:
 					if train_input == None:
 						train_input = tf.estimator.inputs.numpy_input_fn(
-                          				x={"data": np.asarray(train_data[train_index:], dtype=np.float32)},
-                                                	y=np.asarray(train_labels[train_index:], dtype=np.int8),
-                                                	batch_size= batch_size,
-                                                	num_epochs=1,
-                                                	shuffle=True)
+							x={"data": np.asarray(train_data[train_index:], dtype=np.float32)},
+							y=np.asarray(train_labels[train_index:], dtype=np.int8),
+							batch_size= batch_size,
+							num_epochs=1,
+							shuffle=True)
 					train_index = train_size
 				else:
 					index = train_index % train_size	
@@ -63,20 +85,21 @@ def train(input_train, input_test, model_dir, epochs=10, batch_size=10):
 				train_results = estimator.train(input_fn=train_input, steps=None, hooks=[logging_hook])
 				if not FILE_BATCH == None:
 					del train_input
-				
-		
+				#break
+			
+	
 			print(train_results)
-
+		
 			test_index = 0
 			while test_index < test_size:
 				if FILE_BATCH == None:
 					if test_input == None:
 						test_input = tf.estimator.inputs.numpy_input_fn(
-                                        		x={"data": np.asarray(test_data[test_index:], dtype=np.float32)},
-                                        		y=np.asarray(test_labels[test_index:], dtype=np.int8),
-                                        		num_epochs=1,
-                                        		batch_size=batch_size,
-                                        		shuffle=False
+							x={"data": np.asarray(test_data[test_index:], dtype=np.float32)},
+							y=np.asarray(test_labels[test_index:], dtype=np.int8),
+							num_epochs=1,
+							batch_size=batch_size,
+							shuffle=True
 						)
 					test_index = test_size
 				else:
@@ -92,17 +115,40 @@ def train(input_train, input_test, model_dir, epochs=10, batch_size=10):
 				test_results = estimator.evaluate(input_fn=test_input, steps=None, hooks=[logging_hook])
 				if not FILE_BATCH == None:
 					del test_input
+				#break
 
 			print(test_results)
-	sess.close()	
+		
+			# save best checkpoint
+			current_loss = test_results.get("loss")
+			if current_loss < lowest_loss:
+				lowest_loss = current_loss
+				best_model_dir = "{model_dir}/best".format(model_dir=model_dir)
+				if not os.path.exists(best_model_dir):
+					os.makedirs(best_model_dir)
+				latest_checkpoint = estimator.latest_checkpoint()
+				shutil.copy(model_dir+"/checkpoint", best_model_dir)
+				for f in glob.glob(latest_checkpoint+"*"):
+					shutil.copy(f, best_model_dir)
+		
 
-def evaluate(input_validation, model_dir, batch_size):
+		sess.close()	
+
+def evaluate(input_validation, model, model_dir, batch_size, params):
 	validation_file, validation_data, validation_labels = image_utils.load_dataset(input_validation, read_only=True)
 
-	estimator = tf.estimator.Estimator(model_fn=md.description, model_dir=model_dir)
+	params['batch_size'] = batch_size
 
-	print("Evaluating results from image " + input_validation + "...")
+	if model not in models.keys():
+		raise ValueError('Model ' + model + ' is not supported')
+
+	model_fn=models[model]
+
 	with tf.Session(config=config) as sess:	
+		sess.run(tf.global_variables_initializer())
+	
+		estimator = tf.estimator.Estimator(model_fn=model_fn, params=params, model_dir=model_dir)
+
 		validation_input = tf.estimator.inputs.numpy_input_fn(x={"data": validation_data}, batch_size=batch_size, shuffle=False)
 		validation_results = estimator.predict(input_fn=validation_input)
 
@@ -113,7 +159,8 @@ def evaluate(input_validation, model_dir, batch_size):
 		for predict, expect in zip(validation_results, validation_labels):
 			predict[predict > 0.5]  = 1
 			predict[predict <= 0.5] = 0
-
+			
+			
 			pre_flat = predict.reshape(-1)
 			exp_flat = expect.reshape(-1)
 			
@@ -126,7 +173,7 @@ def evaluate(input_validation, model_dir, batch_size):
 		print('Validation accurancy:',np.mean(mean_acc))
 		print(classification_report(exp_flat, pre_flat))
 
-def predict(input_path, output_path, model_dir, chip_size, channels, grids, batch_size):
+def predict(input_path, output_path, model, model_dir, chip_size, channels, grids, batch_size, params):
 	
 	input_dataset = gdal.Open(input_path)
 
@@ -134,12 +181,22 @@ def predict(input_path, output_path, model_dir, chip_size, channels, grids, batc
 
 	image_predicted = np.zeros((image.shape[0], image.shape[1]), dtype=np.int)
 	
+	params['batch_size'] = batch_size
+
+	if model not in models.keys():
+		raise ValueError('Model ' + model + ' is not supported')
+
+	model_fn=models[model]
+
 	with tf.Session(config=config) as sess:
-		estimator = tf.estimator.Estimator(model_fn=md.description, model_dir=model_dir)
+
+		estimator = tf.estimator.Estimator(model_fn=model_fn, params=params, model_dir=model_dir)
+
 		for step in image_utils.get_grids(grids, chip_size):
 			batch = []
 			for (x, y, window, original_dimensions) in image_utils.sliding_window(image, step["steps"], step["chip_size"], (chip_size, chip_size)):
 				if window.shape[0] != chip_size or window.shape[1] != chip_size:
+					print(window.shape, chip_size)
 					continue
 
 				window_normalized = image_utils.normalize(window)
@@ -194,12 +251,12 @@ def predict(input_path, output_path, model_dir, chip_size, channels, grids, batc
 		output_band.WriteArray(image_predicted.reshape((image_predicted.shape[0], image_predicted.shape[1])), 0, 0)
 		output_band.FlushCache()
 
-
 args = arguments.parser_mode.parse_known_args(sys.argv[1:])
 
 if args[0].mode == "generate":
 	args_generate = arguments.parser_generate.parse_args(sys.argv[1:])
 	if(args_generate.image and args_generate.labels and args_generate.output and args_generate.image):
+
 		image_utils.generate_dataset(
                 	image_path	= args_generate.image,
                 	labels_path	= args_generate.labels,
@@ -216,36 +273,48 @@ if args[0].mode == "generate":
 elif args[0].mode == "train":
 	args_train = arguments.parser_train.parse_args(sys.argv[1:])
 	if args_train.train and args_train.test:
+		params["num_classes"] 	= args_train.classes
+
 		train(
                 	input_train 	= args_train.train,
                 	input_test  	= args_train.test,
+                	model		= args_train.model,
                 	model_dir   	= args_train.model_dir,
                 	epochs      	= args_train.epochs,
                 	batch_size  	= args_train.batch_size,
+			params          = params
         	)
 	else:
 		arguments.parser_train.print_hep()
 elif args[0].mode == "evaluate":
 	args_evaluate = arguments.parser_evaluate.parse_args(sys.argv[2:])
 	if  args_evaluate.evaluate:
+		params["num_classes"] = args_evaluate.classes
+
 		evaluate(
                 	input_validation= args_evaluate.evaluate,
+                	model		= args_evaluate.model,
                 	model_dir 	= args_evaluate.model_dir,
 			batch_size      = args_evaluate.batch_size,
+			params          = params
         	)
 	else:
 		arguments.parser_evaluate.print_help()
 elif args[0].mode == "predict":
 	args_predict = arguments.parser_predict.parse_args(sys.argv[2:])
 	if args_predict.input and args_predict.output:
+		params["num_classes"]   = args_predict.classes
+
 		predict(
                 	input_path  	= args_predict.input,
                 	output_path 	= args_predict.output,
                		chip_size       = args_predict.chip_size,
                         channels        = args_predict.channels,
 			grids		= args_predict.grids,
+                	model		= args_predict.model,
                		model_dir       = args_predict.model_dir,
                         batch_size      = args_predict.batch_size,
+			params          = params
         	)
 	else:
 		arguments.parser_predict.print_help()
