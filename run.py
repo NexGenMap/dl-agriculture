@@ -196,7 +196,6 @@ def predict(input_path, output_path, model, model_dir, chip_size, channels, grid
 			batch = []
 			for (x, y, window, original_dimensions) in image_utils.sliding_window(image, step["steps"], step["chip_size"], (chip_size, chip_size)):
 				if window.shape[0] != chip_size or window.shape[1] != chip_size:
-					print(window.shape, chip_size)
 					continue
 
 				window_normalized = image_utils.normalize(window)
@@ -296,7 +295,7 @@ elif args[0].mode == "evaluate":
                 	model		= args_evaluate.model,
                 	model_dir 	= args_evaluate.model_dir,
 			batch_size      = args_evaluate.batch_size,
-			params          = params
+			params          = params,
         	)
 	else:
 		arguments.parser_evaluate.print_help()
@@ -314,7 +313,7 @@ elif args[0].mode == "predict":
                 	model		= args_predict.model,
                		model_dir       = args_predict.model_dir,
                         batch_size      = args_predict.batch_size,
-			params          = params
+			params          = params,
         	)
 	else:
 		arguments.parser_predict.print_help()

@@ -73,7 +73,7 @@ def get_gradient(image):
 
 def get_rotate(image):
 	images = []
-	for rot in [0, 90, 180, 270, randint(1, 359)]:
+	for rot in [0, 90, 180, 270]:#, randint(1, 359)]:
 		image_rotate = rotate(image, rot, preserve_range=True)
 		images.append(image_rotate)
 	return images
@@ -118,14 +118,15 @@ def generate_dataset(image_path, labels_path, output_path, chip_size, channels, 
 	image = np.dstack([image_data, image_labels])
 	# pad image to avoid the loss of border samples
 	pad_size=int(chip_size*0.25)
-	image=np.pad(image,((pad_size,pad_size),(pad_size,pad_size),(0,0)),'reflect')
+	#image=np.pad(image,((pad_size,pad_size),(pad_size,pad_size),(0,0)),'reflect')
 	del image_data
 	del image_labels
 	
 	for step in get_grids(grids, chip_size):
 		print(step)
 		batch = []
-		for (x, y, window, dimension) in sliding_window(image, step["steps"], np.multiply(step["chip_size"], 1.5).astype(int), np.multiply((chip_size, chip_size), 1.5).astype(int)):
+		#for (x, y, window, dimension) in sliding_window(image, step["steps"], np.multiply(step["chip_size"], 1.5).astype(int), np.multiply((chip_size, chip_size), 1.5).astype(int)):
+		for (x, y, window, dimension) in sliding_window(image, step["steps"], step["chip_size"], (chip_size, chip_size)):
 			if get_available_memory() >= 10:
 				train = np.array(window[:, :, : channels], dtype=np.int16)
 				labels = np.array(window[:, :, -1:], dtype=np.int8)
@@ -146,11 +147,13 @@ def generate_dataset(image_path, labels_path, output_path, chip_size, channels, 
 							images_flip.extend(get_flip(im))
 						images_daugmentation.extend(images_flip)
 	
-					border_size=int(chip_size*0.25)
+					#border_size=int(chip_size*0.25)
 
 					for i in images_daugmentation:
-						new_train = i[border_size : -border_size, border_size : -border_size, : channels]
-						new_labels = np.array(i[border_size : -border_size, border_size : -border_size, -1:], dtype=np.int8)
+						#new_train = i[border_size : -border_size, border_size : -border_size, : channels]
+						#new_labels = np.array(i[border_size : -border_size, border_size : -border_size, -1:], dtype=np.int8)
+						new_train = i[:,:,:channels]
+						new_labels = np.array(i[:,:,-1:], dtype=np.int8)
 				
 						if not chip_is_empty(new_labels):
 							np.clip(new_labels, 0, None, out=new_labels)
@@ -160,12 +163,10 @@ def generate_dataset(image_path, labels_path, output_path, chip_size, channels, 
 				print("Memory full")
 				save_dataset(batch, output_path, chip_size, channels)
 				del batch
-				gc.collect()
 				batch = []
 
 		save_dataset(batch, output_path, chip_size, channels)
 		del batch
-		gc.collect()
 		batch = []
 
 def save_dataset(batch, output_path, chip_size, channels):
@@ -219,7 +220,7 @@ def sliding_window(image, step, windowSize, windowResize=None):
 
 			original_shape = window.shape
 
-			if not windowResize is None:
+			if (windowResize is None):
 				window = resize(window, (window_resize_cols, window_resize_rows), preserve_range=True, anti_aliasing=True).astype(np.int16)
 			yield (origin_x, origin_y, window, original_shape)
 
@@ -261,4 +262,3 @@ def crop_tensor(tensor, new_shape):
 	size = [-1, new_shape[1], new_shape[2], tensor_shape[3]]
 	tensor_cropped = tf.slice(tensor, offsets, size)
 	return tensor_cropped
-
