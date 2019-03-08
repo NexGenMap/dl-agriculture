@@ -163,10 +163,12 @@ def generate_dataset(image_path, labels_path, output_path, chip_size, channels, 
 				print("Memory full")
 				save_dataset(batch, output_path, chip_size, channels)
 				del batch
+				gc.collect()
 				batch = []
 
 		save_dataset(batch, output_path, chip_size, channels)
 		del batch
+		gc.collect()
 		batch = []
 
 def save_dataset(batch, output_path, chip_size, channels):
@@ -220,7 +222,7 @@ def sliding_window(image, step, windowSize, windowResize=None):
 
 			original_shape = window.shape
 
-			if (windowResize is None):
+			if not windowResize is None:
 				window = resize(window, (window_resize_cols, window_resize_rows), preserve_range=True, anti_aliasing=True).astype(np.int16)
 			yield (origin_x, origin_y, window, original_shape)
 
@@ -262,3 +264,4 @@ def crop_tensor(tensor, new_shape):
 	size = [-1, new_shape[1], new_shape[2], tensor_shape[3]]
 	tensor_cropped = tf.slice(tensor, offsets, size)
 	return tensor_cropped
+

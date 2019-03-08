@@ -136,7 +136,7 @@ def train(input_train, input_test, model, model_dir, epochs, batch_size, params)
 
 def evaluate(input_validation, model, model_dir, batch_size, params):
 	validation_file, validation_data, validation_labels = image_utils.load_dataset(input_validation, read_only=True)
-
+	print(np.unique(validation_labels))
 	params['batch_size'] = batch_size
 
 	if model not in models.keys():
@@ -151,14 +151,18 @@ def evaluate(input_validation, model, model_dir, batch_size, params):
 
 		validation_input = tf.estimator.inputs.numpy_input_fn(x={"data": validation_data}, batch_size=batch_size, shuffle=False)
 		validation_results = estimator.predict(input_fn=validation_input)
-
+		
 		mean_acc = []
 
 		i = 0
 
 		for predict, expect in zip(validation_results, validation_labels):
-			predict[predict > 0.5]  = 1
-			predict[predict <= 0.5] = 0
+		
+			predict[predict >= 0.5]  = 1
+			predict[predict < 0.5] = 0
+
+			expect[expect >= 0.5]  = 1
+			expect[expect < 0.5]  = 0
 			
 			
 			pre_flat = predict.reshape(-1)
@@ -196,6 +200,7 @@ def predict(input_path, output_path, model, model_dir, chip_size, channels, grid
 			batch = []
 			for (x, y, window, original_dimensions) in image_utils.sliding_window(image, step["steps"], step["chip_size"], (chip_size, chip_size)):
 				if window.shape[0] != chip_size or window.shape[1] != chip_size:
+					print(window.shape, chip_size)
 					continue
 
 				window_normalized = image_utils.normalize(window)
@@ -295,7 +300,7 @@ elif args[0].mode == "evaluate":
                 	model		= args_evaluate.model,
                 	model_dir 	= args_evaluate.model_dir,
 			batch_size      = args_evaluate.batch_size,
-			params          = params,
+			params          = params
         	)
 	else:
 		arguments.parser_evaluate.print_help()
@@ -313,7 +318,7 @@ elif args[0].mode == "predict":
                 	model		= args_predict.model,
                		model_dir       = args_predict.model_dir,
                         batch_size      = args_predict.batch_size,
-			params          = params,
+			params          = params
         	)
 	else:
 		arguments.parser_predict.print_help()
