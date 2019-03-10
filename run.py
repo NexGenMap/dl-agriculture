@@ -255,72 +255,73 @@ def predict(input_path, output_path, model, model_dir, chip_size, channels, grid
 		output_band.WriteArray(image_predicted.reshape((image_predicted.shape[0], image_predicted.shape[1])), 0, 0)
 		output_band.FlushCache()
 
-args = arguments.parser_mode.parse_known_args(sys.argv[1:])
+if __name__ == "__main__":
+	args = arguments.parser_mode.parse_known_args(sys.argv[1:])
 
-if args[0].mode == "generate":
-	args_generate = arguments.parser_generate.parse_args(sys.argv[1:])
-	if(args_generate.image and args_generate.labels and args_generate.output and args_generate.image):
+	if args[0].mode == "generate":
+		args_generate = arguments.parser_generate.parse_args(sys.argv[1:])
+		if(args_generate.image and args_generate.labels and args_generate.output and args_generate.image):
 
-		image_utils.generate_dataset(
-                	image_path	= args_generate.image,
-                	labels_path	= args_generate.labels,
-			output_path	= args_generate.output,
-			chip_size	= args_generate.chip_size,
-			channels	= args_generate.channels,
-			grids		= args_generate.grids,
-			rotate		= args_generate.rotate,
-			flip		= args_generate.flip,
-		)
+			image_utils.generate_dataset(
+	                	image_path	= args_generate.image,
+	                	labels_path	= args_generate.labels,
+				output_path	= args_generate.output,
+				chip_size	= args_generate.chip_size,
+				channels	= args_generate.channels,
+				grids		= args_generate.grids,
+				rotate		= args_generate.rotate,
+				flip		= args_generate.flip,
+			)
+		else:
+			arguments.parser_generate.print_help()
+
+	elif args[0].mode == "train":
+		args_train = arguments.parser_train.parse_args(sys.argv[1:])
+		if args_train.train and args_train.test:
+			params["num_classes"] 	= args_train.classes
+
+			train(
+	                	input_train 	= args_train.train,
+	                	input_test  	= args_train.test,
+	                	model		= args_train.model,
+	                	model_dir   	= args_train.model_dir,
+	                	epochs      	= args_train.epochs,
+	                	batch_size  	= args_train.batch_size,
+				params          = params
+	        	)
+		else:
+			arguments.parser_train.print_hep()
+	elif args[0].mode == "evaluate":
+		args_evaluate = arguments.parser_evaluate.parse_args(sys.argv[2:])
+		if  args_evaluate.evaluate:
+			params["num_classes"] = args_evaluate.classes
+
+			evaluate(
+	                	input_validation= args_evaluate.evaluate,
+	                	model		= args_evaluate.model,
+	                	model_dir 	= args_evaluate.model_dir,
+				batch_size      = args_evaluate.batch_size,
+				params          = params
+	        	)
+		else:
+			arguments.parser_evaluate.print_help()
+	elif args[0].mode == "predict":
+		args_predict = arguments.parser_predict.parse_args(sys.argv[2:])
+		if args_predict.input and args_predict.output:
+			params["num_classes"]   = args_predict.classes
+
+			predict(
+	                	input_path  	= args_predict.input,
+	                	output_path 	= args_predict.output,
+	               		chip_size       = args_predict.chip_size,
+	                        channels        = args_predict.channels,
+				grids		= args_predict.grids,
+	                	model		= args_predict.model,
+	               		model_dir       = args_predict.model_dir,
+	                        batch_size      = args_predict.batch_size,
+				params          = params
+	        	)
+		else:
+			arguments.parser_predict.print_help()
 	else:
-		arguments.parser_generate.print_help()
-
-elif args[0].mode == "train":
-	args_train = arguments.parser_train.parse_args(sys.argv[1:])
-	if args_train.train and args_train.test:
-		params["num_classes"] 	= args_train.classes
-
-		train(
-                	input_train 	= args_train.train,
-                	input_test  	= args_train.test,
-                	model		= args_train.model,
-                	model_dir   	= args_train.model_dir,
-                	epochs      	= args_train.epochs,
-                	batch_size  	= args_train.batch_size,
-			params          = params
-        	)
-	else:
-		arguments.parser_train.print_hep()
-elif args[0].mode == "evaluate":
-	args_evaluate = arguments.parser_evaluate.parse_args(sys.argv[2:])
-	if  args_evaluate.evaluate:
-		params["num_classes"] = args_evaluate.classes
-
-		evaluate(
-                	input_validation= args_evaluate.evaluate,
-                	model		= args_evaluate.model,
-                	model_dir 	= args_evaluate.model_dir,
-			batch_size      = args_evaluate.batch_size,
-			params          = params
-        	)
-	else:
-		arguments.parser_evaluate.print_help()
-elif args[0].mode == "predict":
-	args_predict = arguments.parser_predict.parse_args(sys.argv[2:])
-	if args_predict.input and args_predict.output:
-		params["num_classes"]   = args_predict.classes
-
-		predict(
-                	input_path  	= args_predict.input,
-                	output_path 	= args_predict.output,
-               		chip_size       = args_predict.chip_size,
-                        channels        = args_predict.channels,
-			grids		= args_predict.grids,
-                	model		= args_predict.model,
-               		model_dir       = args_predict.model_dir,
-                        batch_size      = args_predict.batch_size,
-			params          = params
-        	)
-	else:
-		arguments.parser_predict.print_help()
-else:
-	arguments.parser.print_help()
+		arguments.parser.print_help()
