@@ -192,68 +192,66 @@ def predict(input_path, output_path, model, model_dir, chip_size, channels, grid
 
 	model_fn=models[model]
 
-	with tf.Session(config=config) as sess:
+	estimator = tf.estimator.Estimator(model_fn=model_fn, params=params, model_dir=model_dir)
 
-		estimator = tf.estimator.Estimator(model_fn=model_fn, params=params, model_dir=model_dir)
+	for step in image_utils.get_grids(grids, chip_size):
+		batch = []
+		for (x, y, window, original_dimensions) in image_utils.sliding_window(image, step["steps"], step["chip_size"], (chip_size, chip_size)):
+			if window.shape[0] != chip_size or window.shape[1] != chip_size:
+				print(window.shape, chip_size)
+				continue
 
-		for step in image_utils.get_grids(grids, chip_size):
-			batch = []
-			for (x, y, window, original_dimensions) in image_utils.sliding_window(image, step["steps"], step["chip_size"], (chip_size, chip_size)):
-				if window.shape[0] != chip_size or window.shape[1] != chip_size:
-					print(window.shape, chip_size)
-					continue
+			window_normalized = image_utils.normalize(window)
 
-				window_normalized = image_utils.normalize(window)
-	
-				batch.append({
-					"window": window_normalized,
-					"x": x,
-					"y": y,
-					"dimensions": original_dimensions
-				})
+			batch.append({
+				"window": window_normalized,
+				"x": x,
+				"y": y,
+				"dimensions": original_dimensions
+			})
 
-				if len(batch) >= batch_size:
-					windows = []
-					positions = []
-					dimensions = []
-					for b in batch:
-						windows.append(b.get("window"))
-						positions.append((b.get("x"), b.get("y")))
-						dimensions.append(b.get("dimensions"))
+			if len(batch) >= batch_size:
+				windows = []
+				positions = []
+				dimensions = []
+				for b in batch:
+					windows.append(b.get("window"))
+					positions.append((b.get("x"), b.get("y")))
+					dimensions.append(b.get("dimensions"))
+			
+				windows = np.array(windows)
+
+				predict_input_fn = tf.estimator.inputs.numpy_input_fn(
+					x={"data": np.array(windows, dtype=np.float32)},
+					shuffle=False
+				)
+
+				pred = estimator.predict(input_fn=predict_input_fn)
+
+				for window, position, dimension, predict in zip(windows, positions, dimensions, pred):
+					predict[predict > 0.5] = 1
+					predict[predict <=  0.5] = 0
+
+					predict = image_utils.resize(predict, (dimension[0], dimension[1]), preserve_range=True, anti_aliasing=True).astype(np.int8)			
+					predict = predict.reshape((predict.shape[0], predict.shape[1]))
+
+					predicted = image_utils.get_window(image_predicted, position[0], position[1], predict.shape[1], predict.shape[0])			
 				
-					windows = np.array(windows)
+					if predict.shape != predicted.shape:
+						import ipdb; ipdb.set_trace()
+					try:
+						image_utils.set_window(image_predicted, np.add(predict, predicted), position[0], position[1])
+					except Exception as e:
+						import ipdb; ipdb.set_trace()
+				batch = []
 
-					predict_input_fn = tf.estimator.inputs.numpy_input_fn(
-						x={"data": np.array(windows, dtype=np.float32)},
-						shuffle=False
-					)
-
-					pred = estimator.predict(input_fn=predict_input_fn)
-
-					for window, position, dimension, predict in zip(windows, positions, dimensions, pred):
-						predict[predict > 0.5] = 1
-						predict[predict <=  0.5] = 0
-	
-						predict = image_utils.resize(predict, (dimension[0], dimension[1]), preserve_range=True, anti_aliasing=True).astype(np.int8)			
-						predict = predict.reshape((predict.shape[0], predict.shape[1]))
-
-						predicted = image_utils.get_window(image_predicted, position[0], position[1], predict.shape[1], predict.shape[0])			
-					
-						if predict.shape != predicted.shape:
-							import ipdb; ipdb.set_trace()
-						try:
-							image_utils.set_window(image_predicted, np.add(predict, predicted), position[0], position[1])
-						except Exception as e:
-							import ipdb; ipdb.set_trace()
-					batch = []
-
-		driver = input_dataset.GetDriver()
-		output_dataset = driver.Create(output_path, image.shape[1], image.shape[0], 1, gdal.GDT_Int16)
-		output_dataset.SetGeoTransform(input_dataset.GetGeoTransform())
-		output_dataset.SetProjection(input_dataset.GetProjection())
-		output_band = output_dataset.GetRasterBand(1)
-		output_band.WriteArray(image_predicted.reshape((image_predicted.shape[0], image_predicted.shape[1])), 0, 0)
-		output_band.FlushCache()
+	driver = input_dataset.GetDriver()
+	output_dataset = driver.Create(output_path, image.shape[1], image.shape[0], 1, gdal.GDT_Int16)
+	output_dataset.SetGeoTransform(input_dataset.GetGeoTransform())
+	output_dataset.SetProjection(input_dataset.GetProjection())
+	output_band = output_dataset.GetRasterBand(1)
+	output_band.WriteArray(image_predicted.reshape((image_predicted.shape[0], image_predicted.shape[1])), 0, 0)
+	output_band.FlushCache()
 
 if __name__ == "__main__":
 	args = arguments.parser_mode.parse_known_args(sys.argv[1:])
