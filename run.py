@@ -11,7 +11,7 @@ import psutil
 import shutil
 import glob
 
-from models import unet, unet_lapig, deeplab
+from models import unet, deeplab
 import image_utils
 import arguments
 
@@ -24,7 +24,6 @@ config.gpu_options.per_process_gpu_memory_fraction = 1
 
 models = {
 	'unet'      : unet.model_fn,
-	'unet_lapig': unet_lapig.model_fn,
 	'deeplab'   : deeplab.model_fn,
 }
 
