@@ -71,3 +71,6 @@ python3 run.py --mode=evaluate --evaluate=validation.h5 --batch_size=5 --classes
 ```
 python3 run.py --mode=predict --input=image.tif --output=output.tif --chip_size=1024 --channels=4 --grids=1 --batch_size=5 --classes=2
 ```
+
+### Paper
+Saraiva, M.; Protas, É.; Salgado, M.; Souza, C. Automatic Mapping of Center Pivot Irrigation Systems from Satellite Images Using Deep Learning. Remote Sens. 2020, 12, 558. DOI: [10.3390/rs12030558](https://doi.org/10.3390/rs12030558)
