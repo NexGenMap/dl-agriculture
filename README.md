@@ -1,3 +1,7 @@
+### Notes
+
+* For mapping center pivot irrigation systems, please, see our latest work [here](https://github.com/mapbiomas-brazil/irrigation/tree/master/center-pivot-irrigation-systems).
+
 ### Get gdal development libraries:
 
 ```
