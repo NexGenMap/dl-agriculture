@@ -64,6 +64,8 @@ python3 run.py --mode=generate --image=image5.tif --labels=image5_labels.tif --o
 python3 run.py --mode=train --train=train.h5 --test=test.h5 --epochs=100 --batch_size=5 --classes=2
 ```
 
+The trained model is available here: https://drive.google.com/file/d/11RO6vJL6eYmtz2YlsEGmz2hUPJ3H1rqd/view?usp=sharing
+
 ### Evaluate model
 
 ```
